@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Solar System Orrery with Features</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: "Roboto", sans-serif;
+        background-color: #1e1e1e;
+        color: #f1f1f1;
+      }
+
+      canvas {
+        display: block;
+      }
+
+      #info-panel {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(30, 30, 30, 0.9);
+        color: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        display: none;
+        font-family: "Roboto", sans-serif;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        transition: opacity 0.3s ease;
+      }
+
+      #controls {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: rgba(50, 50, 50, 0.8);
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+      }
+
+      #controls button {
+        margin: 10px 0;
+        padding: 8px 15px;
+        background-color: #3f51b5;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+        display: block;
+      }
+
+      #controls button:hover {
+        background-color: #283593;
+        transform: translateY(-2px);
+      }
+
+      #controls button:active {
+        transform: translateY(0);
+      }
+
+      .planet-label {
+        position: absolute;
+        font-family: "Roboto", sans-serif;
+        font-size: 12px;
+        color: white;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 5px 8px;
+        border-radius: 5px;
+        opacity: 0.8;
+        transition: opacity 0.2s ease;
+      }
+
+      .planet-label:hover {
+        opacity: 1;
+      }
+
+      h3 {
+        font-size: 1.2em;
+        margin-bottom: 0.5em;
+        color: #ffcc00;
+      }
+
+      p {
+        margin: 0;
+        font-size: 0.9em;
+        line-height: 1.4;
+        color: #f1f1f1;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="info-panel"></div>
+    <div id="controls">
+      <button id="toggleOrbits">Toggle Orbits</button>
+      <button id="toggleAsteroids">Toggle Asteroids</button>
+      <button id="speedUp">Speed Up</button>
+      <button id="slowDown">Slow Down</button>
+    </div>
+    <script type="module">
+      import * as THREE from "https://cdn.skypack.dev/three@0.132.2";
+      import { OrbitControls } from "https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/OrbitControls.js";
+
+      let speedMultiplier = 1;
+      let orbitsVisible = true;
+      let asteroidsVisible = true;
+      let comets = [];
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      camera.position.set(0, 50, 150);
+      controls.update();
+
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+
+      const infoPanel = document.getElementById("info-panel");
+
+      const sunGeometry = new THREE.SphereGeometry(10, 32, 32);
+      const sunTexture = new THREE.TextureLoader().load("textures/sun.jpg");
+      const sunMaterial = new THREE.MeshBasicMaterial({ map: sunTexture });
+      const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+      scene.add(sun);
+
+      const planetsData = [
+        {
+          name: "Mercury",
+          radius: 0.8,
+          semiMajorAxis: 15,
+          eccentricity: 0.2056,
+          color: 0xa9a9a9,
+          info: "Mercury is the smallest planet in the Solar System and the closest to the Sun.",
+          texture: "textures/m.jpg",
+        },
+        {
+          name: "Venus",
+          radius: 1.5,
+          semiMajorAxis: 25,
+          eccentricity: 0.0068,
+          color: 0xffcc99,
+          info: "Venus is the second planet from the Sun and is Earth's closest planetary neighbor.",
+          texture: "textures/v.jpg",
+        },
+        {
+          name: "Earth",
+          radius: 1.6,
+          semiMajorAxis: 35,
+          eccentricity: 0.0167,
+          color: 0x0000ff,
+          info: "Earth is the third planet from the Sun and the only astronomical object known to harbor life.",
+          texture: "textures/e.jpg",
+        },
+        {
+          name: "Mars",
+          radius: 0.532,
+          semiMajorAxis: 45,
+          eccentricity: 0.0934,
+          color: 0xff4500,
+          info: "Mars is the fourth planet from the Sun and is often described as the 'Red Planet'.",
+          texture: "textures/mars.jpg",
+        },
+        {
+          name: "Jupiter",
+          radius: 11.21,
+          semiMajorAxis: 70,
+          eccentricity: 0.0489,
+          color: 0xffa500,
+          info: "Jupiter is the fifth planet from the Sun and the largest in the Solar System.",
+          texture: "textures/j.jpg",
+        },
+        {
+          name: "Saturn",
+          radius: 9.45,
+          semiMajorAxis: 100,
+          eccentricity: 0.0565,
+          color: 0xf5deb3,
+          info: "Saturn is the sixth planet from the Sun and is known for its prominent ring system.",
+          texture: "textures/s.jpg",
+        },
+        {
+          name: "Uranus",
+          radius: 4.01,
+          semiMajorAxis: 130,
+          eccentricity: 0.0463,
+          color: 0x40e0d0,
+          info: "Uranus is the seventh planet from the Sun and is an ice giant.",
+          texture: "textures/u.jpg",
+        },
+        {
+          name: "Neptune",
+          radius: 3.88,
+          semiMajorAxis: 160,
+          eccentricity: 0.0102,
+          color: 0x1e90ff,
+          info: "Neptune is the eighth and farthest known Solar planet from the Sun.",
+          texture: "textures/n.jpg",
+        },
+      ];
+
+      function createEllipseGeometry(semiMajorAxis, eccentricity) {
+        const semiMinorAxis =
+          semiMajorAxis * Math.sqrt(1 - eccentricity * eccentricity);
+        const curve = new THREE.EllipseCurve(
+          0,
+          0,
+          semiMajorAxis,
+          semiMinorAxis,
+          0,
+          2 * Math.PI,
+          false,
+          0
+        );
+        const points = curve.getPoints(100);
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+        const shiftX = -semiMajorAxis * eccentricity;
+        const shiftMatrix = new THREE.Matrix4().makeTranslation(shiftX, 0, 0);
+        geometry.applyMatrix4(shiftMatrix);
+
+        const orbit = new THREE.Line(
+          geometry,
+          new THREE.LineBasicMaterial({ color: 0xffffff })
+        );
+        orbit.rotation.x = Math.PI / 2;
+
+        return orbit;
+      }
+
+      planetsData.forEach((planet) => {
+        const planetGeometry = new THREE.SphereGeometry(planet.radius, 32, 32);
+        const texture = new THREE.TextureLoader().load(planet.texture);
+        const planetMaterial = new THREE.MeshStandardMaterial({
+          map: texture,
+          roughness: 0.5,
+          metalness: 0.5,
+        });
+        const planetMesh = new THREE.Mesh(planetGeometry, planetMaterial);
+        planetMesh.userData = { name: planet.name, info: planet.info };
+        planetMesh.castShadow = true;
+        planetMesh.receiveShadow = true;
+
+        const orbit = createEllipseGeometry(
+          planet.semiMajorAxis,
+          planet.eccentricity
+        );
+        scene.add(orbit);
+        scene.add(planetMesh);
+
+        planet.mesh = planetMesh;
+        planet.orbit = orbit;
+        planet.angle = Math.random() * Math.PI * 2;
+      });
+
+      const ambientLight = new THREE.AmbientLight(0x404040, 1);
+      scene.add(ambientLight);
+
+      const pointLight = new THREE.PointLight(0xffffff, 1.5, 0);
+      pointLight.position.set(0, 0, 0);
+      scene.add(pointLight);
+
+      const asteroids = [];
+      function createAsteroid(index) {
+        const size = Math.random() * 0.5 + 0.3;
+        const asteroidGeometry = new THREE.SphereGeometry(size, 16, 16);
+        const asteroidMaterial = new THREE.MeshStandardMaterial({
+          color: 0xbbbbbb,
+          roughness: 0.8,
+          metalness: 0.2,
+        });
+        const asteroid = new THREE.Mesh(asteroidGeometry, asteroidMaterial);
+
+        const semiMajorAxis = Math.random() * 150 + 10;
+        const eccentricity = Math.random() * 0.2;
+        const angle = Math.random() * Math.PI * 2;
+        const height = (Math.random() - 0.5) * 20;
+
+        asteroid.userData = {
+          name: `Asteroid ${index}`,
+          info: "A small rocky body orbiting the sun.",
+          orbitSpeed: Math.random() * 0.0005 + 0.0001,
+          semiMajorAxis: semiMajorAxis,
+          eccentricity: eccentricity,
+          angle: angle,
+          height: height,
+        };
+
+        const a = semiMajorAxis;
+        const e = eccentricity;
+        const b = a * Math.sqrt(1 - e * e);
+        const x = a * Math.cos(angle) - a * e;
+        const z = b * Math.sin(angle);
+        asteroid.position.set(x, height, z);
+
+        asteroid.castShadow = true;
+        asteroid.receiveShadow = true;
+
+        return asteroid;
+      }
+
+      for (let i = 0; i < 500; i++) {
+        const asteroid = createAsteroid(i);
+        asteroids.push(asteroid);
+        scene.add(asteroid);
+      }
+
+      function createStarfield() {
+        const starGeometry = new THREE.BufferGeometry();
+        const starMaterial = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 1,
+        });
+
+        const starVertices = [];
+        for (let i = 0; i < 10000; i++) {
+          const x = THREE.MathUtils.randFloatSpread(2000);
+          const y = THREE.MathUtils.randFloatSpread(2000);
+          const z = THREE.MathUtils.randFloatSpread(2000);
+          starVertices.push(x, y, z);
+        }
+
+        starGeometry.setAttribute(
+          "position",
+          new THREE.Float32BufferAttribute(starVertices, 3)
+        );
+
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+      }
+      createStarfield();
+
+      function createComet(index) {
+        const cometSize = Math.random() * 0.5 + 0.3;
+        const cometGeometry = new THREE.SphereGeometry(cometSize, 16, 16);
+        const cometMaterial = new THREE.MeshStandardMaterial({
+          color: 0xddddff,
+          roughness: 0.7,
+        });
+
+        const cometMesh = new THREE.Mesh(cometGeometry, cometMaterial);
+
+        // More eccentric orbits for comets
+        const semiMajorAxis = Math.random() * 300 + 50; // Larger orbit
+        const eccentricity = Math.random() * 0.9 + 0.6; // Higher eccentricity
+        const angle = Math.random() * Math.PI * 2;
+
+        // Apply a small random tilt to the comet's orbit
+        const inclination = (Math.random() - 0.5) * 0.8; // Random orbital inclination
+        const tiltX = (Math.random() - 0.5) * 0.5; // Tilt in x-axis
+        const tiltY = (Math.random() - 0.5) * 0.5; // Tilt in y-axis
+        const tiltZ = (Math.random() - 0.5) * 0.5; // Tilt in z-axis
+
+        cometMesh.userData = {
+          name: `Comet ${index}`,
+          info: "A small celestial body that has an elliptical orbit around the Sun, with a tail of gas and dust.",
+          orbitSpeed: Math.random() * 0.0003 + 0.0001,
+          semiMajorAxis: semiMajorAxis,
+          eccentricity: eccentricity,
+          angle: angle,
+          inclination: inclination,
+          tilt: { x: tiltX, y: tiltY, z: tiltZ },
+        };
+
+        const a = semiMajorAxis;
+        const e = eccentricity;
+        const b = a * Math.sqrt(1 - e * e);
+        const x = a * Math.cos(angle) - a * e;
+        const z = b * Math.sin(angle);
+        cometMesh.position.set(x, 0, z);
+
+        // Apply the rotation (tilt) to the comet
+        cometMesh.rotation.set(tiltX, tiltY, tiltZ);
+
+        // Create a comet tail
+        const tailMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.6,
+        });
+        const tailGeometry = new THREE.CylinderGeometry(
+          0.05,
+          cometSize,
+          20,
+          32
+        );
+        const tailMesh = new THREE.Mesh(tailGeometry, tailMaterial);
+        tailMesh.rotation.x = Math.PI / 2;
+        cometMesh.add(tailMesh);
+
+        comets.push({ mesh: cometMesh, tail: tailMesh });
+        scene.add(cometMesh);
+      }
+
+      // Create a few comets
+      for (let i = 0; i < 10; i++) {
+        createComet(i);
+      }
+
+      document.getElementById("toggleOrbits").addEventListener("click", () => {
+        orbitsVisible = !orbitsVisible;
+        planetsData.forEach((planet) => (planet.orbit.visible = orbitsVisible));
+      });
+
+      document
+        .getElementById("toggleAsteroids")
+        .addEventListener("click", () => {
+          asteroidsVisible = !asteroidsVisible;
+          asteroids.forEach(
+            (asteroid) => (asteroid.visible = asteroidsVisible)
+          );
+        });
+
+      document.getElementById("speedUp").addEventListener("click", () => {
+        speedMultiplier *= 1.5;
+      });
+
+      document.getElementById("slowDown").addEventListener("click", () => {
+        speedMultiplier *= 0.75;
+      });
+
+      window.addEventListener("mousemove", onMouseMove, false);
+      window.addEventListener("click", () => {
+        infoPanel.style.display = "none";
+      });
+
+      function onMouseMove(event) {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      }
+
+      const labels = {};
+      planetsData.forEach((planet) => {
+        const labelDiv = document.createElement("div");
+        labelDiv.className = "planet-label";
+        labelDiv.textContent = planet.name;
+        document.body.appendChild(labelDiv);
+        labels[planet.name] = labelDiv;
+      });
+
+      function updateLabels() {
+        planetsData.forEach((planet) => {
+          const planetPos = new THREE.Vector3();
+          planet.mesh.getWorldPosition(planetPos);
+
+          const screenPos = planetPos.project(camera);
+          const x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+          const y = -(screenPos.y * 0.5 - 0.5) * window.innerHeight;
+
+          labels[
+            planet.name
+          ].style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+        });
+      }
+
+      function createRings() {
+        const ringGeometry = new THREE.RingGeometry(12, 18, 64);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+          color: 0xf5deb3,
+          side: THREE.DoubleSide,
+        });
+        const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+        ringMesh.rotation.x = Math.PI / 2;
+        return ringMesh;
+      }
+
+      planetsData.forEach((planet) => {
+        if (planet.name === "Saturn") {
+          const rings = createRings();
+          rings.position.copy(planet.mesh.position);
+          planet.mesh.add(rings);
+        }
+      });
+
+      function render() {
+        requestAnimationFrame(render);
+
+        planetsData.forEach((planet) => {
+          const angularSpeed =
+            (0.005 / Math.sqrt(planet.semiMajorAxis)) * speedMultiplier;
+          planet.angle += angularSpeed;
+
+          const a = planet.semiMajorAxis;
+          const e = planet.eccentricity;
+          const b = a * Math.sqrt(1 - e * e);
+          const theta = planet.angle;
+
+          const x = a * Math.cos(theta) - a * e;
+          const z = b * Math.sin(theta);
+
+          planet.mesh.position.set(x, 0, z);
+
+          if (planet.name === "Earth") {
+            planet.mesh.rotation.y += 0.01;
+          }
+        });
+
+        asteroids.forEach((asteroid) => {
+          asteroid.userData.angle +=
+            asteroid.userData.orbitSpeed * speedMultiplier;
+          const a = asteroid.userData.semiMajorAxis;
+          const e = asteroid.userData.eccentricity;
+          const b = a * Math.sqrt(1 - e * e);
+          const theta = asteroid.userData.angle;
+
+          const x = a * Math.cos(theta) - a * e;
+          const z = b * Math.sin(theta);
+
+          asteroid.position.set(x, asteroid.userData.height, z);
+        });
+
+        comets.forEach((comet) => {
+          const { mesh, tail } = comet;
+          mesh.userData.angle += mesh.userData.orbitSpeed * speedMultiplier;
+
+          const a = mesh.userData.semiMajorAxis;
+          const e = mesh.userData.eccentricity;
+          const b = a * Math.sqrt(1 - e * e);
+          const theta = mesh.userData.angle;
+
+          const x = a * Math.cos(theta) - a * e;
+          const z = b * Math.sin(theta);
+
+          mesh.position.set(x, 0, z);
+
+          // Update comet tail to point away from the Sun
+          const tailDirection = new THREE.Vector3()
+            .subVectors(mesh.position, sun.position)
+            .normalize();
+          tail.lookAt(tailDirection.add(mesh.position));
+        });
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(scene.children);
+
+        if (intersects.length > 0) {
+          const object = intersects[0].object;
+          if (object.userData && object.userData.name) {
+            infoPanel.innerHTML = `<h3>${object.userData.name}</h3><p>${object.userData.info}</p>`;
+            infoPanel.style.display = "block";
+          } else {
+            infoPanel.style.display = "none";
+          }
+        } else {
+          infoPanel.style.display = "none";
+        }
+
+        updateLabels();
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      render();
+    </script>
+  </body>
+</html>
